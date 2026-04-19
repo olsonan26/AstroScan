@@ -1,201 +1,238 @@
-# 🔭 AstroScan
+# 🔭 AstroScan v3.0 — Book-to-Knowledge-Base Pipeline
 
-**The ultimate book-to-knowledge-base pipeline for astrology textbooks.**
+> Photograph book pages → AI extracts all knowledge → Searchable, indexed knowledge base
+> Built specifically for a 1000+ page astrology textbook with charts, diagrams, and precise definitions.
 
-AstroScan combines the most powerful open-source OCR, layout detection, and vision AI tools into one godlike pipeline that:
+---
 
-1. **Preprocesses** photographed book pages (deskew, contrast, sharpening)
-2. **Extracts text** with precise layout detection using [Marker](https://github.com/datalab-to/marker) (⭐23k) + [Surya](https://github.com/datalab-to/surya) (⭐14k)
-3. **Extracts & analyzes charts/diagrams** using free vision AI models via OpenRouter
-4. **Builds a structured knowledge base** — every concept, definition, house, sign, planet, retrograde, and rule indexed and searchable
+## 🏗️ Architecture
 
-Built specifically for scanning astrology textbooks where **every symbol, chart, and definition matters**.
+```
+📷 Book Photos
+    │
+    ▼
+┌─────────────────────────────┐
+│ 📐 DocScanner Dewarping     │  Fix curved/warped page photos
+│   (Geometric + Deep Learning)│  (auto-detects if needed)
+└─────────────┬───────────────┘
+              ▼
+┌─────────────────────────────┐
+│ 🔧 OpenCV Preprocessing     │  Deskew → Denoise → Contrast → Sharpen
+│   (CLAHE + Unsharp Mask)    │
+└─────────────┬───────────────┘
+              ▼
+┌─────────────────────────────────────────────────────┐
+│ 📖 Multi-Engine OCR (best accuracy via cross-check) │
+│                                                      │
+│  🏆 MinerU (33k⭐)          Primary — beats GPT-4o  │
+│  📄 Marker + Surya (37k⭐)  Secondary — structured   │
+│  👁️ Vision AI (free models)  Fallback — always works │
+│                                                      │
+│  → Results merged with confidence scoring            │
+└─────────────────────┬───────────────────────────────┘
+                      ▼
+┌─────────────────────────────────────────────┐
+│ 👁️ Vision AI Chart Analysis                 │
+│  Analyzes natal wheels, aspect tables,      │
+│  diagrams, symbols — anything visual        │
+│  (Free via OpenRouter: Gemma, Nemotron)     │
+└─────────────┬───────────────────────────────┘
+              ▼
+┌─────────────────────────────────────────────────────────┐
+│ 🧠 3-Layer Knowledge Base                               │
+│                                                          │
+│  Layer 1: ChromaDB Vectors (16k⭐)                      │
+│    → Semantic search: "what rules career?" finds         │
+│      Saturn/10th house/Capricorn even without keywords   │
+│                                                          │
+│  Layer 2: Knowledge Graph (GraphRAG-inspired, 25k⭐)    │
+│    → Relationship mapping: Saturn → rules → Capricorn    │
+│    → Path finding: "How is Mars connected to Aries?"     │
+│    → Community detection: auto-clusters related concepts │
+│                                                          │
+│  Layer 3: Structured Index (category/tag lookups)        │
+│    → Quick access by: house, sign, planet, aspect, rule  │
+│    → Full-text search across all extracted content        │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## ⚡ What's New in v3.0
+
+| Feature | v1.0 | v2.0 | v3.0 |
+|---------|------|------|------|
+| OCR Engine | Marker only | Marker only | **MinerU + Marker (merged)** |
+| Page Dewarping | ❌ | ❌ | **✅ Auto-detect + fix curved pages** |
+| Search | Keyword only | + Semantic + Graph | + Multi-engine confidence |
+| Knowledge Base | JSON index | + ChromaDB + NetworkX | Same (already god-tier) |
+| CLI Commands | 5 | 10 | **13** |
+
+### New CLI Commands in v3.0
+- `astroscan engines` — Show which OCR engines are installed
+- `astroscan check-page <image>` — Analyze curvature/quality before processing
+- `astroscan dewarp <image>` — Dewarp a single curved page
 
 ---
 
 ## 🚀 Quick Start (Windows)
 
-### Prerequisites
-- Python 3.10 or higher ([Download](https://www.python.org/downloads/))
-- During install, check **"Add Python to PATH"**
-
-### Installation
-
-```bash
-# Clone the repo
+### 1. Install
+```cmd
 git clone https://github.com/olsonan26/AstroScan.git
 cd AstroScan
+pip install -e .
 
-# Create virtual environment
-python -m venv venv
-venv\Scripts\activate
+REM Optional: Install MinerU for best accuracy (GPU recommended)
+pip install magic-pdf[full]
+```
 
-# Install dependencies
-pip install -r requirements.txt
-
-# Copy config and add your OpenRouter API key
+### 2. Configure
+```cmd
 copy config.example.yaml config.yaml
-# Edit config.yaml with your settings
+REM Edit config.yaml: add your OpenRouter API key
 ```
 
-Or use the one-click installer:
-```bash
-install_windows.bat
+### 3. Drop photos & process
+```cmd
+REM Put book page photos in ./input/
+astroscan process
 ```
 
-### Configuration
+### 4. Search your knowledge base
+```cmd
+astroscan hybrid-search "what sign does Saturn rule"
+astroscan graph-search "Saturn"
+astroscan find-path "Mars" "Aries"
+astroscan communities
+astroscan stats
+```
 
-Edit `config.yaml`:
+---
+
+## 🔧 All CLI Commands
+
+```
+📖 Processing
+  astroscan process           Full pipeline (dewarp → OCR → vision → KB)
+  astroscan process -f img    Process a single image
+  astroscan process -p 1-50   Process specific pages
+
+🔍 Search (3 modes + hybrid)
+  astroscan search <query>          Keyword search (fast, exact)
+  astroscan semantic-search <query> AI-powered meaning search (ChromaDB)
+  astroscan graph-search <concept>  Knowledge graph traversal
+  astroscan hybrid-search <query>   🔥 All 3 combined (BEST)
+
+🕸️ Knowledge Graph
+  astroscan find-path <A> <B>    Find connections between concepts
+  astroscan communities          Show concept clusters
+
+📊 Utilities
+  astroscan stats              Knowledge base statistics
+  astroscan engines            Show installed OCR engines
+  astroscan check-page <img>   Analyze page quality + curvature
+  astroscan dewarp <img>       Dewarp a single curved page
+  astroscan rebuild-kb         Rebuild KB from output files
+  astroscan export             Export KB to JSON or Markdown
+```
+
+---
+
+## 📦 Open Source Stack
+
+| Component | Stars | Role |
+|-----------|-------|------|
+| **MinerU** (OpenDataLab) | ⭐33.1k | Primary OCR — 1.2B model beats GPT-4o |
+| **Marker** | ⭐23k | Secondary OCR — structured markdown |
+| **Surya** (in Marker) | ⭐14k | Layout detection, reading order |
+| **ChromaDB** | ⭐16k | Semantic vector search |
+| **NetworkX** + GraphRAG concepts | ⭐25k | Knowledge graph, communities |
+| **OpenCV** | ⭐82k | Image preprocessing + geometric dewarping |
+| **DocScanner** (IJCV 2025) | ⭐205 | Deep learning page rectification |
+| **OpenRouter** | — | Free vision models for chart analysis |
+
+---
+
+## ⚙️ Configuration
+
 ```yaml
+# config.yaml
 openrouter_api_key: "sk-or-v1-your-key-here"
-input_dir: "./input"          # Drop your book page photos here
-output_dir: "./output"        # Processed pages go here
-knowledge_base_dir: "./knowledge_base"  # The brain
-```
 
-### Usage
+input_dir: "./input"
+output_dir: "./output"
+knowledge_base_dir: "./knowledge_base"
 
-```bash
-# Process all photos in the input directory
-python -m astroscan process
+# v3.0: Dewarping
+dewarping:
+  enabled: true
+  method: "auto"  # auto, docscanner, geometric, off
+  auto_detect_threshold: 0.3
 
-# Process a specific image
-python -m astroscan process --file "Page_001.jpg"
+# v3.0: OCR engines
+ocr_engines:
+  mineru: true      # Best accuracy (needs pip install magic-pdf[full])
+  marker: true      # Structured markdown
+  vision_ai: true   # Free fallback
+  merge_strategy: "best"  # best, combine, mineru_only, marker_only
 
-# Process a range of pages
-python -m astroscan process --pages 1-50
+# Preprocessing
+preprocessing:
+  deskew: true
+  enhance_contrast: true
+  sharpen: true
+  denoise: true
 
-# View knowledge base stats
-python -m astroscan stats
+# Vision models (free, rotated for rate limits)
+vision_models:
+  - "google/gemma-4-26b-a4b-it:free"
+  - "google/gemma-3-27b-it:free"
+  - "nvidia/nemotron-nano-12b-v2-vl:free"
+  - "google/gemma-3-12b-it:free"
+  - "google/gemma-3-4b-it:free"
 
-# Search the knowledge base
-python -m astroscan search "Saturn retrograde"
-
-# Export knowledge base
-python -m astroscan export --format json
-python -m astroscan export --format markdown
-```
-
----
-
-## 📦 What Powers AstroScan
-
-| Component | Tool | Stars | Role |
-|-----------|------|-------|------|
-| OCR Engine | [Marker](https://github.com/datalab-to/marker) | ⭐23k | Converts page images to structured markdown with layout preservation |
-| Layout Detection | [Surya](https://github.com/datalab-to/surya) | ⭐14k | Detects text regions, tables, figures, reading order (built into Marker) |
-| Image Preprocessing | OpenCV + scikit-image | — | Deskew, contrast enhancement, sharpening, noise removal |
-| Chart Analysis | OpenRouter Vision AI | — | Free vision models analyze natal charts, aspect grids, diagrams |
-| Knowledge Base | Custom | — | Structures extracted content into indexed, searchable knowledge |
-
-### Free Vision Models Used (via OpenRouter)
-- `google/gemma-4-26b-a4b-it:free` — Best quality, 262K context
-- `google/gemma-3-27b-it:free` — 27B params, 131K context
-- `nvidia/nemotron-nano-12b-v2-vl:free` — Fast, reliable
-- `google/gemma-3-12b-it:free` — Good balance of speed/quality
-- Automatic model rotation to avoid rate limits
-
----
-
-## 🧠 Knowledge Base
-
-The knowledge base is the **brain** of this system. It's not just raw text — it's structured, categorized, and indexed:
-
-### Structure
-```
-knowledge_base/
-├── index.json              # Master index of all content
-├── concepts/               # Core astrological concepts
-│   ├── houses.json
-│   ├── signs.json
-│   ├── planets.json
-│   ├── aspects.json
-│   └── retrogrades.json
-├── definitions/            # Term definitions (book-specific only)
-│   └── glossary.json
-├── relationships/          # How concepts connect
-│   └── mappings.json
-├── charts/                 # All chart/diagram descriptions
-│   └── diagrams.json
-├── rules/                  # Astrological rules and methods
-│   └── methods.json
-└── full_text/              # Complete page-by-page text
-    └── book.md
-```
-
-### Key Design: Fixed Astrology Only
-
-This knowledge base stores **only what the book teaches**. It does NOT use conventional/mainstream astrology definitions. Every concept, meaning, and rule comes exclusively from the source material.
-
-This ensures the downstream app built from this knowledge base uses the correct "fixed astrology" system.
-
----
-
-## 📁 Output Structure
-
-Each processed page produces:
-```
-output/
-├── page_0001/
-│   ├── original.jpg          # Original photo
-│   ├── preprocessed.jpg      # After deskew/contrast/sharpening
-│   ├── text.md               # Extracted text (markdown)
-│   ├── figures/              # Extracted images/charts
-│   │   ├── figure_001.png
-│   │   └── figure_002.png
-│   ├── chart_analysis.md     # Vision AI analysis of diagrams
-│   ├── knowledge_entries.json # Structured knowledge from this page
-│   └── metadata.json         # Processing metadata
-├── page_0002/
-│   └── ...
-└── processing_log.json       # Overall processing stats
+rate_limit:
+  requests_per_minute: 15
+  retry_delay_seconds: 10
+  max_retries: 3
 ```
 
 ---
 
-## ⚡ Performance
+## 📁 Project Structure
 
-- **Processing speed**: ~30-60 seconds per page (depends on content complexity)
-- **Vision AI cost**: $0.00 (uses free OpenRouter models)
-- **Rate limits**: Automatic model rotation handles free tier limits (~20 req/min)
-- **For 1000+ pages**: Pipeline supports batch processing with automatic resume
-
----
-
-## 🔧 Advanced Usage
-
-### Resume interrupted processing
-```bash
-python -m astroscan process --resume
 ```
-
-### Reprocess specific pages
-```bash
-python -m astroscan process --pages 42,56,78 --force
-```
-
-### Update knowledge base from existing output
-```bash
-python -m astroscan rebuild-kb
-```
-
-### Run with verbose logging
-```bash
-python -m astroscan process --verbose
+AstroScan/
+├── astroscan/
+│   ├── __init__.py
+│   ├── __main__.py         Entry point
+│   ├── cli.py              13 CLI commands
+│   ├── config.py           Configuration management
+│   ├── models.py           Pydantic data models
+│   ├── dewarper.py         ✨ NEW: DocScanner + geometric dewarping
+│   ├── mineru_ocr.py       ✨ NEW: MinerU integration + multi-engine merge
+│   ├── preprocess.py       OpenCV image preprocessing
+│   ├── ocr.py              Marker + Surya OCR
+│   ├── vision.py           OpenRouter Vision AI
+│   ├── knowledge_base.py   ChromaDB + Knowledge Graph + structured index
+│   └── pipeline.py         Full processing orchestrator
+├── config.example.yaml
+├── requirements.txt
+├── pyproject.toml
+├── install_windows.bat
+└── README.md
 ```
 
 ---
 
-## 📋 Requirements
+## 🔒 Important: Book-Only Knowledge
 
-- Python 3.10+
-- 4GB+ RAM (for Marker/Surya models)
-- ~2GB disk space (for model downloads on first run)
-- Internet connection (for OpenRouter vision AI calls)
-- GPU optional but recommended for faster OCR
+This system is built to capture knowledge from ONE specific book only.
+The knowledge base is the **single source of truth** — no conventional
+astrology, no pop astrology, no external interpretations are mixed in.
+Only what's in the book goes into the knowledge base.
 
 ---
 
-## License
-
-Private — built for AngoraBuilds.
+*Built with ❤️ by AngoraBuilds — powered by the best open source on GitHub*

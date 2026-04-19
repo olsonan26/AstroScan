@@ -70,6 +70,25 @@ class Config:
             "max_retries": 3,
         })
     
+    @property
+    def dewarping(self) -> dict:
+        """Dewarping configuration for curved book page photos."""
+        return self._data.get("dewarping", {
+            "enabled": True,
+            "method": "auto",  # auto, docscanner, geometric, off
+            "auto_detect_threshold": 0.3,  # curvature score threshold
+        })
+    
+    @property
+    def ocr_engines(self) -> dict:
+        """OCR engine configuration."""
+        return self._data.get("ocr_engines", {
+            "mineru": True,     # Use MinerU when available (best accuracy)
+            "marker": True,     # Use Marker+Surya (structured markdown)
+            "vision_ai": True,  # Use Vision AI as fallback
+            "merge_strategy": "best",  # best, combine, mineru_only, marker_only
+        })
+    
     def ensure_dirs(self):
         """Create all required directories."""
         self.input_dir.mkdir(parents=True, exist_ok=True)

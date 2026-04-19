@@ -1,6 +1,15 @@
 """Full AstroScan processing pipeline.
 
-Orchestrates: Preprocess → OCR → Vision Analysis → Knowledge Base
+Orchestrates: Dewarp → Preprocess → OCR (MinerU + Marker) → Vision Analysis → Knowledge Base
+
+v3.0 Pipeline:
+1. Dewarp (DocScanner/geometric correction for curved book pages)
+2. Preprocess (deskew, contrast, sharpen, denoise)
+3. OCR Pass A: MinerU (33k⭐, beats GPT-4o at document understanding)
+4. OCR Pass B: Marker + Surya (23k⭐ + 14k⭐, structured markdown)
+5. Merge OCR results (cross-engine validation for best accuracy)
+6. Vision AI chart/diagram analysis
+7. Knowledge extraction → ChromaDB + Knowledge Graph
 """
 from __future__ import annotations
 from pathlib import Path
@@ -14,6 +23,8 @@ from typing import Optional
 from astroscan.config import Config
 from astroscan.preprocess import preprocess_page
 from astroscan.ocr import extract_text_and_figures
+from astroscan.dewarper import dewarp_page, estimate_curvature
+from astroscan.mineru_ocr import extract_with_mineru, merge_ocr_results, is_mineru_available
 from astroscan.vision import VisionAI
 from astroscan.knowledge_base import KnowledgeBaseManager
 from astroscan.models import PageMetadata, ChartDescription
@@ -111,9 +122,10 @@ async def process_single_page(
         return PageMetadata(**json.loads(meta_path.read_text()))
     
     page_dir.mkdir(parents=True, exist_ok=True)
-    print(f"\n{'='*50}")
+    print(f"\n{'='*60}")
     print(f"📄 Processing Page {page_number}: {image_path.name}")
-    print(f"{'='*50}")
+    print(f"   v3.0 Pipeline: Dewarp → Preprocess → MinerU + Marker → Vision → KB")
+    print(f"{'='*60}")
     
     # Copy original
     original_dest = page_dir / f"original{image_path.suffix}"
@@ -126,13 +138,31 @@ async def process_single_page(
     width, height = img.size
     file_size = image_path.stat().st_size
     
+    # ── Step 0: Curvature Detection + Dewarping ─────────────────
+    print("\n📐 Step 0: Curvature detection...")
+    curvature = estimate_curvature(image_path)
+    dewarped_path = page_dir / "dewarped.jpg"
+    
+    if curvature["needs_dewarping"]:
+        print(f"  📐 Curvature detected (score: {curvature['curvature_score']:.2f})")
+        try:
+            dewarp_page(image_path, dewarped_path, method=curvature["estimated_method"])
+            print(f"  ✅ Dewarped using {curvature['estimated_method']} method")
+            preprocess_input = dewarped_path
+        except Exception as e:
+            print(f"  ⚠ Dewarping failed ({e}), using original")
+            preprocess_input = image_path
+    else:
+        print(f"  ✅ Page is flat (score: {curvature['curvature_score']:.2f}), skipping dewarp")
+        preprocess_input = image_path
+    
     # ── Step 1: Preprocess ──────────────────────────────────────
     print("\n🔧 Step 1: Preprocessing...")
     preprocessed_path = page_dir / "preprocessed.jpg"
     try:
         pp = config.preprocessing
         preprocess_page(
-            image_path, preprocessed_path,
+            preprocess_input, preprocessed_path,
             do_deskew=pp.get("deskew", True),
             do_contrast=pp.get("enhance_contrast", True),
             do_sharpen=pp.get("sharpen", True),
@@ -142,23 +172,64 @@ async def process_single_page(
         ocr_input = preprocessed_path
     except Exception as e:
         print(f"  ⚠ Preprocessing failed ({e}), using original")
-        ocr_input = image_path
+        ocr_input = preprocess_input
     
-    # ── Step 2: OCR via Marker ──────────────────────────────────
-    print("\n📖 Step 2: Text extraction (Marker + Surya)...")
-    ocr_result = extract_text_and_figures(ocr_input, page_dir, page_number)
-    text = ocr_result.get("text", "")
-    figures = ocr_result.get("figures", [])
-    ocr_model = "marker+surya"
+    # ── Step 2a: OCR via MinerU (primary — best accuracy) ───────
+    mineru_result = {}
+    if is_mineru_available():
+        print("\n🏆 Step 2a: MinerU OCR (beats GPT-4o at doc understanding)...")
+        try:
+            mineru_result = extract_with_mineru(ocr_input, page_dir, page_number)
+            if mineru_result.get("text"):
+                print(f"  ✅ MinerU: {mineru_result['text_length']} chars, "
+                      f"{mineru_result.get('num_tables', 0)} tables, "
+                      f"{mineru_result.get('num_figures', 0)} figures")
+            else:
+                print(f"  ⚠ MinerU returned no text: {mineru_result.get('error', '')}")
+        except Exception as e:
+            print(f"  ⚠ MinerU error: {e}")
+    else:
+        print("\n  ℹ MinerU not installed (install: pip install magic-pdf[full])")
+    
+    # ── Step 2b: OCR via Marker + Surya (secondary) ─────────────
+    print("\n📖 Step 2b: Marker + Surya OCR...")
+    marker_result = extract_text_and_figures(ocr_input, page_dir, page_number)
+    marker_text = marker_result.get("text", "")
+    figures = marker_result.get("figures", [])
+    
+    if marker_text:
+        print(f"  ✅ Marker: {len(marker_text)} chars, {len(figures)} figures")
+    
+    # ── Step 2c: Merge OCR results ──────────────────────────────
+    print("\n🔀 Step 2c: Merging OCR engines...")
+    if mineru_result.get("text") or marker_text:
+        merged = merge_ocr_results(marker_result, mineru_result)
+        text = merged["text"]
+        figures = merged.get("figures", figures)
+        ocr_model = f"merged ({merged['primary_engine']}, confidence: {merged.get('confidence', 0):.2f})"
+        print(f"  ✅ Primary engine: {merged['primary_engine']} | "
+              f"Confidence: {merged.get('confidence', 0):.2f} | "
+              f"Engines: {', '.join(merged.get('engines_used', []))}")
+    else:
+        text = ""
+        ocr_model = "none"
     
     # ── Step 3: Fallback OCR via Vision AI ──────────────────────
-    if not text or ocr_result.get("fallback"):
+    if not text:
         print("\n📝 Step 3: Vision AI OCR (fallback)...")
         text, ocr_model = await vision_ai.extract_text(ocr_input)
         if text:
             (page_dir / "text.md").write_text(text, encoding="utf-8")
+            # Also try merging with any partial results
+            if mineru_result.get("text") or marker_text:
+                merged = merge_ocr_results(
+                    marker_result, mineru_result,
+                    {"text": text, "figures": []},
+                )
+                text = merged["text"]
+                ocr_model = f"merged+vision ({merged['primary_engine']})"
     else:
-        print(f"\n  ✅ Marker extracted {len(text)} chars, {len(figures)} figures")
+        print(f"\n  ✅ Combined OCR: {len(text)} chars")
     
     # ── Step 4: Chart/Diagram Analysis ──────────────────────────
     print("\n🔭 Step 4: Chart/diagram analysis...")

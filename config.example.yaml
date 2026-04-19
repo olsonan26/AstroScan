@@ -1,0 +1,37 @@
+# AstroScan Configuration
+# Copy this to config.yaml and fill in your settings
+
+# OpenRouter API key for free vision models (chart/diagram analysis)
+openrouter_api_key: "sk-or-v1-your-key-here"
+
+# Directory paths
+input_dir: "./input"                    # Drop book page photos here
+output_dir: "./output"                  # Processed pages saved here
+knowledge_base_dir: "./knowledge_base"  # Structured knowledge output
+
+# Vision AI models (free tier, auto-rotated for rate limits)
+vision_models:
+  - "google/gemma-4-26b-a4b-it:free"
+  - "google/gemma-3-27b-it:free"
+  - "nvidia/nemotron-nano-12b-v2-vl:free"
+  - "google/gemma-3-12b-it:free"
+  - "google/gemma-3-4b-it:free"
+
+# Processing settings
+preprocessing:
+  deskew: true              # Auto-straighten tilted pages
+  enhance_contrast: true    # Improve readability
+  sharpen: true             # Sharpen text edges
+  denoise: true             # Remove camera noise
+
+# Rate limiting (for free OpenRouter models)
+rate_limit:
+  requests_per_minute: 15   # Stay under free tier limits
+  retry_delay_seconds: 10   # Wait between retries on 429
+  max_retries: 3            # Max retries per request
+
+# Knowledge base settings
+knowledge_base:
+  source_name: "Fixed Astrology Textbook"
+  auto_categorize: true     # Auto-detect concepts, definitions, rules
+  preserve_page_order: true # Maintain book chapter ordering

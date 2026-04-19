@@ -8,3 +8,12 @@ click>=8.1.0
 pydantic>=2.0.0
 Pillow>=10.0.0
 numpy>=1.24.0
+# ── Knowledge Base v2 (ChromaDB + Knowledge Graph) ──
+chromadb>=0.5.0
+networkx>=3.2
+# ── v3.0: MinerU document parser (optional, best accuracy) ──
+# Uncomment to install MinerU (requires ~2GB disk, GPU recommended):
+# magic-pdf[full]>=1.3.0
+# ── v3.0: DocScanner dewarping (uses OpenCV — always available) ──
+# Deep learning dewarping requires PyTorch (optional):
+# torch>=2.0.0

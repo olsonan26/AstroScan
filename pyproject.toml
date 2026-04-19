@@ -1,7 +1,7 @@
 [project]
 name = "astroscan"
-version = "1.0.0"
-description = "Book-to-knowledge-base pipeline for astrology textbooks"
+version = "3.0.0"
+description = "Book-to-knowledge-base pipeline: MinerU + Marker OCR, DocScanner dewarping, ChromaDB + Knowledge Graph"
 requires-python = ">=3.10"
 dependencies = [
     "marker-pdf>=1.0.0",
@@ -13,6 +13,9 @@ dependencies = [
     "click>=8.1.0",
     "pydantic>=2.0.0",
     "Pillow>=10.0.0",
+    # Knowledge Base v2
+    "chromadb>=0.5.0",
+    "networkx>=3.2",
 ]
 
 [project.scripts]
